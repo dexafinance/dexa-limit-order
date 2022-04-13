@@ -4,16 +4,19 @@ use cosmwasm_std::{
     Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
+//PairInfo
+use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::{
     Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg, SimulationResponse,
 };
-use terraswap::querier::{query_pair_info, simulate};
+//query_pair_info
+use terraswap::querier::{simulate};
 
 pub fn submit_order(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    pair_addr: String,
     offer_asset: Asset,
     ask_asset: Asset,
     fee_amount: Uint128,
@@ -27,18 +30,32 @@ pub fn submit_order(
         )));
     }
 
+    let fee_included = offer_asset.info == config.fee_token;
+
+    let new_offer_asset = if fee_included {
+        let amount = offer_asset.amount + fee_amount;
+        Asset {
+            amount,
+            ..offer_asset.clone()
+        }
+    } else {
+        offer_asset.clone()
+    };
+
+
     // check if the pair exists
-    let pair_info: PairInfo = query_pair_info(
-        &deps.querier,
-        config.terraswap_factory,
-        &[offer_asset.info.clone(), ask_asset.info.clone()],
-    )
-    .map_err(|_| StdError::generic_err("there is no terraswap pair for the 2 assets provided"))?;
+    // ignore this check for now, use the pair_addr from parameter instead
+    // let pair_info: PairInfo = query_pair_info(
+    //     &deps.querier,
+    //     config.terraswap_factory,
+    //     &[offer_asset.info.clone(), ask_asset.info.clone()],
+    // )
+    // .map_err(|_| StdError::generic_err("there is no terraswap pair for the 2 assets provided"))?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
-    match offer_asset.info.clone() {
-        AssetInfo::NativeToken { .. } => offer_asset.assert_sent_native_token_balance(&info)?,
+    match new_offer_asset.info.clone() {
+        AssetInfo::NativeToken { .. } => new_offer_asset.assert_sent_native_token_balance(&info)?,
         AssetInfo::Token { contract_addr } => {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr,
@@ -46,27 +63,36 @@ pub fn submit_order(
                 msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
                     owner: info.sender.to_string(),
                     recipient: env.contract.address.to_string(),
-                    amount: offer_asset.amount,
+                    amount: new_offer_asset.amount,
                 })?,
             }));
         }
     }
 
     // transfer fee to self
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: config.fee_token.to_string(),
-        funds: vec![],
-        msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-            owner: info.sender.to_string(),
-            recipient: env.contract.address.to_string(),
-            amount: fee_amount,
-        })?,
-    }));
+    if !fee_included {
+        match config.fee_token.clone() {
+            AssetInfo::NativeToken { .. } => {
+                Asset { amount: fee_amount, info : config.fee_token.clone()}.assert_sent_native_token_balance(&info)?
+            },
+            AssetInfo::Token { contract_addr } => {
+                messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr,
+                    funds: vec![],
+                    msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                        owner: info.sender.to_string(),
+                        recipient: env.contract.address.to_string(),
+                        amount: fee_amount,
+                    })?,
+                }));
+            }
+        }
+    }
 
     let mut new_order = OrderInfo {
         order_id: 0u64, // provisional
         bidder_addr: deps.api.addr_validate(info.sender.as_str())?,
-        pair_addr: deps.api.addr_validate(pair_info.contract_addr.as_str())?,
+        pair_addr: deps.api.addr_validate(&pair_addr)?,
         offer_asset: offer_asset.clone(),
         ask_asset: ask_asset.clone(),
         fee_amount,
@@ -97,9 +123,7 @@ pub fn cancel_order(deps: DepsMut, info: MessageInfo, order_id: u64) -> StdResul
 
     // refund fee
     let refund_fee_asset = Asset {
-        info: AssetInfo::Token {
-            contract_addr: config.fee_token.to_string(),
-        },
+        info: config.fee_token.clone(),
         amount: order.fee_amount,
     };
     messages.push(
@@ -118,7 +142,7 @@ pub fn cancel_order(deps: DepsMut, info: MessageInfo, order_id: u64) -> StdResul
     ]))
 }
 
-pub fn execute_order(deps: DepsMut, info: MessageInfo, order_id: u64) -> StdResult<Response> {
+pub fn execute_order(deps: DepsMut, _info: MessageInfo, order_id: u64) -> StdResult<Response> {
     let config: Config = CONFIG.load(deps.storage)?;
     let order: OrderInfo = ORDERS.load(deps.storage, &order_id.to_be_bytes())?;
 
@@ -184,24 +208,25 @@ pub fn execute_order(deps: DepsMut, info: MessageInfo, order_id: u64) -> StdResu
             .into_msg(&deps.querier, order.bidder_addr.clone())?,
     );
 
-    // send excess to executor
+    // executor might earn config.executor_fee_percent amount of excess and fee, but 
+    // for simplicity it is disabled now. Will explore this option later.
+
+    // send excess amount to reserve
     let excess_amount: Uint128 = simul_res.return_amount - order.ask_asset.amount;
     if excess_amount > Uint128::zero() {
         let excess_asset = Asset {
             amount: excess_amount,
             info: order.ask_asset.info.clone(),
         };
-        messages.push(excess_asset.into_msg(&deps.querier, info.sender.clone())?);
+        messages.push(excess_asset.into_msg(&deps.querier, deps.api.addr_validate(&config.reserve_addr)?)?);
     }
 
-    // send fee to executor
+    // send fee to reserve
     let fee_asset = Asset {
         amount: order.fee_amount,
-        info: AssetInfo::Token {
-            contract_addr: config.fee_token.to_string(),
-        },
+        info: config.fee_token.clone()
     };
-    messages.push(fee_asset.clone().into_msg(&deps.querier, info.sender)?);
+    messages.push(fee_asset.clone().into_msg(&deps.querier, deps.api.addr_validate(&config.reserve_addr)?)?);
 
     remove_order(deps.storage, &order);
 

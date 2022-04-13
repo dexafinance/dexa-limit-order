@@ -5,16 +5,24 @@
   "required": [
     "fee_token",
     "min_fee_amount",
-    "terraswap_factory"
+    "min_fee_percent",
+    "executor_fee_percent",
+    "reserve_addr"
   ],
   "properties": {
     "fee_token": {
-      "type": "string"
+      "$ref": "#/definitions/AssetInfo"
     },
     "min_fee_amount": {
       "$ref": "#/definitions/Uint128"
     },
-    "terraswap_factory": {
+    "min_fee_percent": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "executor_fee_percent": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "reserve_addr": {
       "type": "string"
     }
   },

@@ -3,7 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use miaw_limit_order::msg::{
+use dexa_limit_order::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, LastOrderIdResponse, OrderResponse, OrdersResponse,
     QueryMsg,
 };

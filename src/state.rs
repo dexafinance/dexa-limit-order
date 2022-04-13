@@ -3,7 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Order, StdResult, Storage, Uint128};
-use terraswap::asset::Asset;
+use terraswap::asset::{Asset, AssetInfo};
 
 use crate::msg::{ConfigResponse, OrderBy, OrderResponse};
 
@@ -14,17 +14,22 @@ pub const ORDERS_BY_USER: Map<(&[u8], &[u8]), bool> = Map::new("orders_by_user")
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub fee_token: Addr,
+    pub fee_token: AssetInfo,
     pub min_fee_amount: Uint128,
-    pub terraswap_factory: Addr,
+    // min_fee_percent 1000 ~ 1000/1000000 = 0.1%
+    pub min_fee_percent: Uint128,
+    pub executor_fee_percent: Uint128,
+    pub reserve_addr: String,
 }
 
 impl Config {
     pub fn as_res(&self) -> StdResult<ConfigResponse> {
         let res = ConfigResponse {
-            fee_token: self.fee_token.to_string(),
+            fee_token: self.fee_token.clone(),
             min_fee_amount: self.min_fee_amount,
-            terraswap_factory: self.terraswap_factory.to_string(),
+            min_fee_percent: self.min_fee_percent,
+            executor_fee_percent: self.executor_fee_percent,
+            reserve_addr: self.reserve_addr.clone(),
         };
         Ok(res)
     }

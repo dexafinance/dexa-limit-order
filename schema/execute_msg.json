@@ -3,20 +3,52 @@
   "title": "ExecuteMsg",
   "oneOf": [
     {
+      "description": "Update config, only owner of reserve_addr can execute for security",
+      "type": "object",
+      "required": ["update_config"],
+      "properties": {
+        "update_config": {
+          "type": "object",
+          "required": [
+            "fee_token",
+            "min_fee_amount",
+            "min_fee_percent",
+            "executor_fee_percent",
+            "reserve_addr"
+          ],
+          "properties": {
+            "fee_token": {
+              "$ref": "#/definitions/AssetInfo"
+            },
+            "min_fee_amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "min_fee_percent": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "executor_fee_percent": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "reserve_addr": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "User submits a new order Before, the user should increase allowance for the offer_asset (or send the native token) and the fee",
       "type": "object",
-      "required": [
-        "submit_order"
-      ],
+      "required": ["submit_order"],
       "properties": {
         "submit_order": {
           "type": "object",
-          "required": [
-            "ask_asset",
-            "fee_amount",
-            "offer_asset"
-          ],
+          "required": ["pair_addr", "ask_asset", "fee_amount", "offer_asset"],
           "properties": {
+            "pair_addr": {
+              "type": "string"
+            },
             "ask_asset": {
               "$ref": "#/definitions/Asset"
             },
@@ -34,15 +66,11 @@
     {
       "description": "User operation to canel an existing order",
       "type": "object",
-      "required": [
-        "cancel_order"
-      ],
+      "required": ["cancel_order"],
       "properties": {
         "cancel_order": {
           "type": "object",
-          "required": [
-            "order_id"
-          ],
+          "required": ["order_id"],
           "properties": {
             "order_id": {
               "type": "integer",
@@ -57,15 +85,11 @@
     {
       "description": "Executor operation to execute an existing order",
       "type": "object",
-      "required": [
-        "execute_order"
-      ],
+      "required": ["execute_order"],
       "properties": {
         "execute_order": {
           "type": "object",
-          "required": [
-            "order_id"
-          ],
+          "required": ["order_id"],
           "properties": {
             "order_id": {
               "type": "integer",
@@ -81,10 +105,7 @@
   "definitions": {
     "Asset": {
       "type": "object",
-      "required": [
-        "amount",
-        "info"
-      ],
+      "required": ["amount", "info"],
       "properties": {
         "amount": {
           "$ref": "#/definitions/Uint128"
@@ -99,15 +120,11 @@
       "oneOf": [
         {
           "type": "object",
-          "required": [
-            "token"
-          ],
+          "required": ["token"],
           "properties": {
             "token": {
               "type": "object",
-              "required": [
-                "contract_addr"
-              ],
+              "required": ["contract_addr"],
               "properties": {
                 "contract_addr": {
                   "type": "string"
@@ -119,15 +136,11 @@
         },
         {
           "type": "object",
-          "required": [
-            "native_token"
-          ],
+          "required": ["native_token"],
           "properties": {
             "native_token": {
               "type": "object",
-              "required": [
-                "denom"
-              ],
+              "required": ["denom"],
               "properties": {
                 "denom": {
                   "type": "string"
