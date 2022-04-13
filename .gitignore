@@ -17,3 +17,5 @@
 # IDEs
 *.iml
 .idea
+
+/artifacts/checksums_intermediate.txt
