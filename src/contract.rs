@@ -82,7 +82,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             fee_amount,
         } => submit_order(deps, env, info, pair_addr, offer_asset, ask_asset, fee_amount),
         ExecuteMsg::CancelOrder { order_id } => cancel_order(deps, info, order_id),
-        ExecuteMsg::ExecuteOrder { order_id } => execute_order(deps, info, order_id),
+        ExecuteMsg::ExecuteOrder { order_id, dex } => execute_order(deps, info, order_id, dex),
     }
 }
 

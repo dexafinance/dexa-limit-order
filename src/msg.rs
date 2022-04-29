@@ -37,7 +37,7 @@ pub enum ExecuteMsg {
     /// User operation to canel an existing order
     CancelOrder { order_id: u64 },
     /// Executor operation to execute an existing order
-    ExecuteOrder { order_id: u64 },
+    ExecuteOrder { order_id: u64, dex: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -12,6 +12,8 @@ pub const LAST_ORDER_ID: Item<u64> = Item::new("last_order_id");
 pub const ORDERS: Map<&[u8], OrderInfo> = Map::new("orders");
 pub const ORDERS_BY_USER: Map<(&[u8], &[u8]), bool> = Map::new("orders_by_user");
 
+pub const POOL_PRISM: &str = "prism";
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub fee_token: AssetInfo,

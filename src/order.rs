@@ -1,7 +1,7 @@
-use crate::state::{remove_order, store_new_order, Config, OrderInfo, CONFIG, ORDERS};
+use crate::state::{remove_order, store_new_order, Config, OrderInfo, CONFIG, ORDERS, POOL_PRISM};
 use cosmwasm_std::{
     attr, to_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
-    Uint128, WasmMsg,
+    Uint128, WasmMsg, QuerierWrapper, Addr
 };
 use cw20::Cw20ExecuteMsg;
 //PairInfo
@@ -9,8 +9,12 @@ use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::{
     Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg, SimulationResponse,
 };
+use cw_asset::{Asset as CwAsset, AssetInfo as CwAssetInfo};
+
 //query_pair_info
 use terraswap::querier::{simulate};
+use prismswap::querier::{simulate as simulate_prism};
+use prismswap::pair::{ExecuteMsg as PrismPairExecuteMsg, SimulationResponse as PrismSimulationResponse};
 
 pub fn submit_order(
     deps: DepsMut,
@@ -142,10 +146,44 @@ pub fn cancel_order(deps: DepsMut, info: MessageInfo, order_id: u64) -> StdResul
     ]))
 }
 
-pub fn execute_order(deps: DepsMut, _info: MessageInfo, order_id: u64) -> StdResult<Response> {
+fn simulate_prism_adapter(querier: &QuerierWrapper,
+    pair_contract: &Addr,
+    offer_asset: &Asset) -> StdResult<SimulationResponse> {
+    let prism_offer_asset = CwAsset {
+            amount: offer_asset.amount,
+            info: match &offer_asset.info {
+                AssetInfo::NativeToken { denom } => CwAssetInfo::Native(denom.clone()),
+                AssetInfo::Token { contract_addr } => CwAssetInfo::Cw20(Addr::unchecked(contract_addr.clone()))
+            }
+    };
+
+    // SimulationResponse is the same between terraswap and prismswap
+    let simul_res: PrismSimulationResponse =
+        simulate_prism(querier, pair_contract, &prism_offer_asset)?;
+
+    Ok(SimulationResponse {
+        return_amount: simul_res.return_amount,
+        spread_amount: simul_res.spread_amount,
+        commission_amount: simul_res.commission_amount
+    })
+}
+
+fn simulate_multipools(querier: &QuerierWrapper,
+    dex: String,
+    pair_contract: Addr,
+    offer_asset: &Asset) -> StdResult<SimulationResponse> {
+    if dex == POOL_PRISM {
+        simulate_prism_adapter(querier, &pair_contract, offer_asset)
+    } else {
+        // astroport and terraswap share the same interface
+        simulate(querier, pair_contract, offer_asset)
+    }
+}
+
+pub fn execute_order(deps: DepsMut, _info: MessageInfo, order_id: u64, dex: String) -> StdResult<Response> {
     let config: Config = CONFIG.load(deps.storage)?;
     let order: OrderInfo = ORDERS.load(deps.storage, &order_id.to_be_bytes())?;
-
+    
     // deduct tax if native
     let offer_asset = if order.offer_asset.is_native_token() {
         let amount = order.offer_asset.deduct_tax(&deps.querier)?.amount;
@@ -155,11 +193,12 @@ pub fn execute_order(deps: DepsMut, _info: MessageInfo, order_id: u64) -> StdRes
             ..order.offer_asset.clone()
         }
     } else {
-        order.offer_asset.clone()
+            order.offer_asset.clone()
     };
 
     let simul_res: SimulationResponse =
-        simulate(&deps.querier, order.pair_addr.clone(), &offer_asset)?;
+        simulate_multipools(&deps.querier, dex.clone(), order.pair_addr.clone(), &offer_asset)?;
+
     if simul_res.return_amount < order.ask_asset.amount {
         return Err(StdError::generic_err("insufficient return amount"));
     }
@@ -187,15 +226,28 @@ pub fn execute_order(deps: DepsMut, _info: MessageInfo, order_id: u64) -> StdRes
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: order.pair_addr.to_string(),
                 funds: vec![Coin {
-                    denom,
+                    denom: denom.clone(),
                     amount: offer_asset.amount,
                 }],
-                msg: to_binary(&PairExecuteMsg::Swap {
-                    offer_asset,
-                    belief_price: None,
-                    max_spread: None,
-                    to: None,
-                })?,
+                msg: if dex == POOL_PRISM {
+                    to_binary(&PrismPairExecuteMsg::Swap {
+                        offer_asset: 
+                            CwAsset {
+                                amount: offer_asset.amount,
+                                info: CwAssetInfo::Native(denom.clone())
+                            },
+                        belief_price: None,
+                        max_spread: None,
+                        to: None,
+                    })?
+                } else {
+                    to_binary(&PairExecuteMsg::Swap {
+                        offer_asset,
+                        belief_price: None,
+                        max_spread: None,
+                        to: None,
+                    })?
+                },
             }));
         }
     };
