@@ -1,9 +1,10 @@
 use crate::state::{remove_order, store_new_order, Config, OrderInfo, CONFIG, ORDERS, POOL_PRISM};
 use cosmwasm_std::{
     attr, to_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
-    Uint128, WasmMsg, QuerierWrapper, Addr
+    Uint128, Decimal, WasmMsg, QuerierWrapper, Addr
 };
 use cw20::Cw20ExecuteMsg;
+use std::str::FromStr;
 //PairInfo
 use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::{
@@ -206,6 +207,12 @@ pub fn execute_order(deps: DepsMut, _info: MessageInfo, order_id: u64, dex: Stri
     let mut messages: Vec<CosmosMsg> = vec![];
 
     // create swap message
+    // fix bug swap on astroport bLUNA-LUNA return spread larger than 0.5% causing transaction to fail eventhough
+    // actually less than 0.5% spread from belief_price
+    let belief_price: Option<Decimal> = Some(Decimal::from_ratio(offer_asset.amount, order.ask_asset.amount));
+    // default to max_spread 0.5%
+    // as of 2022/05/04 astroport apply default 0.5% max_spread while terraswap have none i.e. will not check spread if passing none
+    let max_spread: Option<Decimal> = Some(Decimal::from_str("0.005")?);
     match offer_asset.clone().info {
         AssetInfo::Token { contract_addr } => {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -216,8 +223,8 @@ pub fn execute_order(deps: DepsMut, _info: MessageInfo, order_id: u64, dex: Stri
                     amount: offer_asset.amount,
                     msg: to_binary(&PairCw20HookMsg::Swap {
                         to: None,
-                        belief_price: None,
-                        max_spread: None,
+                        belief_price: belief_price,
+                        max_spread: max_spread,
                     })?,
                 })?,
             }));
@@ -236,15 +243,15 @@ pub fn execute_order(deps: DepsMut, _info: MessageInfo, order_id: u64, dex: Stri
                                 amount: offer_asset.amount,
                                 info: CwAssetInfo::Native(denom.clone())
                             },
-                        belief_price: None,
-                        max_spread: None,
+                        belief_price: belief_price,
+                        max_spread: max_spread,
                         to: None,
                     })?
                 } else {
                     to_binary(&PairExecuteMsg::Swap {
                         offer_asset,
-                        belief_price: None,
-                        max_spread: None,
+                        belief_price: belief_price,
+                        max_spread: max_spread,
                         to: None,
                     })?
                 },
