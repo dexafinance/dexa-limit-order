@@ -1,1 +1,1 @@
-f9431f55c3750f9b1c224e24eb866288ac5d9d07c49b93c8c8c732b637fe91cf  dexa_limit_order.wasm
+0854377c704b416c9ecf56997242ffc9fdf21e31ee11a030045c7bd13a6cbd3a  dexa_limit_order.wasm

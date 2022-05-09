@@ -129,16 +129,18 @@ pub fn cancel_order(deps: DepsMut, info: MessageInfo, order_id: u64) -> StdResul
         .clone()
         .into_msg(&deps.querier, order.bidder_addr.clone())?];
 
-    // refund fee
+    // refund fee if any
     let refund_fee_asset = Asset {
         info: config.fee_token.clone(),
         amount: order.fee_amount,
     };
-    messages.push(
-        refund_fee_asset
-            .clone()
-            .into_msg(&deps.querier, order.bidder_addr.clone())?,
-    );
+    if order.fee_amount > Uint128::zero() {
+        messages.push(
+            refund_fee_asset
+                .clone()
+                .into_msg(&deps.querier, order.bidder_addr.clone())?,
+        );
+    }
 
     remove_order(deps.storage, &order);
 
