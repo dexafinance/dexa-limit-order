@@ -2,7 +2,7 @@ use cw_storage_plus::{Bound, Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Order, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Order, StdResult, Storage, Uint128, Decimal};
 use terraswap::asset::{Asset, AssetInfo};
 
 use crate::msg::{ConfigResponse, OrderBy, OrderResponse};
@@ -38,6 +38,15 @@ impl Config {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct RecurringOrderOpt {
+    pub belief_price: Decimal,
+    pub swapback_belief_price: Decimal,
+    // total_loop = 1 meaning there are total two order, the current order and one loop order
+    pub total_loop: u64,
+    pub remaining_loop: u64
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OrderInfo {
     pub order_id: u64,
     pub bidder_addr: Addr,
@@ -45,6 +54,7 @@ pub struct OrderInfo {
     pub offer_asset: Asset,
     pub ask_asset: Asset,
     pub fee_amount: Uint128,
+    pub recurring: Option<RecurringOrderOpt>
 }
 
 impl OrderInfo {
@@ -56,6 +66,7 @@ impl OrderInfo {
             offer_asset: self.offer_asset.clone(),
             ask_asset: self.ask_asset.clone(),
             fee_amount: self.fee_amount,
+            recurring: self.recurring.clone(),
         };
         Ok(res)
     }

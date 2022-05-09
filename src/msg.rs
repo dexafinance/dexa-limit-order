@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::Uint128;
 use terraswap::asset::{Asset, AssetInfo};
 
+use crate::state::{RecurringOrderOpt};
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub fee_token: AssetInfo,
@@ -33,6 +35,7 @@ pub enum ExecuteMsg {
         offer_asset: Asset,
         ask_asset: Asset,
         fee_amount: Uint128,
+        recurring: Option<RecurringOrderOpt>,
     },
     /// User operation to canel an existing order
     CancelOrder { order_id: u64 },
@@ -73,6 +76,7 @@ pub struct OrderResponse {
     pub offer_asset: Asset,
     pub ask_asset: Asset,
     pub fee_amount: Uint128,
+    pub recurring: Option<RecurringOrderOpt>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
