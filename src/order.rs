@@ -186,7 +186,7 @@ fn simulate_multipools(querier: &QuerierWrapper,
     }
 }
 
-pub fn execute_order(deps: DepsMut, _env: Env, info: MessageInfo, order_id: u64, dex: String) -> StdResult<Response> {
+pub fn execute_order(deps: DepsMut, _env: Env, _info: MessageInfo, order_id: u64, dex: String) -> StdResult<Response> {
     let config: Config = CONFIG.load(deps.storage)?;
     let order: OrderInfo = ORDERS.load(deps.storage, &order_id.to_be_bytes())?;
     
@@ -345,7 +345,7 @@ pub fn execute_order(deps: DepsMut, _env: Env, info: MessageInfo, order_id: u64,
 
         let mut new_order = OrderInfo {
             order_id: 0u64, // provisional
-            bidder_addr: deps.api.addr_validate(info.sender.as_str())?,
+            bidder_addr: order.bidder_addr,
             pair_addr: order.pair_addr,
             offer_asset: new_offer_asset,
             ask_asset: new_ask_asset,
